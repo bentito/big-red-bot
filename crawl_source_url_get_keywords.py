@@ -21,6 +21,7 @@ def fetch_cookies_for_domain(db_path, domain):
 def fetch_and_parse_url(url, cookies):
     try:
         response = requests.get(url, cookies=cookies, timeout=10)
+        response.encoding = response.apparent_encoding  # Determine apparent encoding
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text(separator=' ', strip=True).lower()
         words = set(text.split())
@@ -35,8 +36,12 @@ def save_unique_words(words, output_file):
         file.seek(0)
         existing_words = set(word.strip() for word in file)
         new_words = words - existing_words
-        if new_words:
-            file.write('\n'.join(new_words) + '\n')
+        for word in new_words:
+            try:
+                file.write(word + '\n')
+            except UnicodeEncodeError:
+                print(f"Failed to encode word: {word}")
+
 
 
 def main(debug=False):
