@@ -41,7 +41,12 @@ def save_unique_words(words, output_file):
                 file.write(word + '\n')
             except UnicodeEncodeError:
                 print(f"Failed to encode word: {word}")
+    return len(new_words) + len(existing_words)
 
+
+def get_total_urls(input_csv):
+    with open(input_csv, 'r', encoding='utf-8') as file:
+        return sum(1 for row in csv.reader(file)) - 1  # Exclude header
 
 
 def main(debug=False):
@@ -49,6 +54,8 @@ def main(debug=False):
     domain = "redhat.com"
     input_csv = "./the_source_de_duped_results.csv"
     output_file = "unique_words_list.txt"
+    total_urls = get_total_urls(input_csv)
+    current_url_number = 0
 
     # Fetch cookies for the specified domain
     cookies = fetch_cookies_for_domain(db_path, domain)
@@ -56,6 +63,7 @@ def main(debug=False):
     with open(input_csv, 'r', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            current_url_number += 1
             url = row['URL']
             words = fetch_and_parse_url(url, cookies)
             if debug:
@@ -63,11 +71,17 @@ def main(debug=False):
                 print("First 10 words found:", list(words)[:10])
                 break  # Exit after processing the first URL
             else:
-                save_unique_words(words, output_file)
+                word_count = save_unique_words(words, output_file)
+                # Use '\r' to return to the start of the line and 'end' to avoid newline
+                sys.stdout.write(f"\rCrawling ({current_url_number}/{total_urls}): {url} - Current word count: {word_count} - Progress: {current_url_number}/{total_urls}")
+                sys.stdout.flush()
                 time.sleep(random.uniform(0.5, 2.0))  # Be polite with delay
 
+            if debug:
+                break  # Exit after the first URL in debug mode
+
     if not debug:
-        print("Completed crawling and word collection.")
+        print("\nCompleted crawling and word collection.")
 
 
 if __name__ == "__main__":

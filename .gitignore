@@ -1,1 +1,8 @@
 /cookies_firefox_copy.sqlite
+/.idea/.gitignore
+/.idea/big-red-bot.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/the_source_de_duped_results.csv
+/.idea/vcs.xml
