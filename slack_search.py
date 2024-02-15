@@ -1,24 +1,15 @@
-import time
 import sqlite3
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.service import Service as FirefoxService
-from selenium.common.exceptions import NoSuchElementException
-
-
-def fetch_cookies_for_domain(db_path, domain):
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT name, value FROM moz_cookies WHERE host LIKE ?", ('%' + domain + '%',))
-    cookies = cur.fetchall()
-    conn.close()
-    return cookies
-
-
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
 
 def setup_driver_with_existing_profile(profile_path):
-    # Set Firefox Options to use the existing profile
     options = Options()
     options.profile = profile_path
     service = FirefoxService(executable_path=r'./geckodriver')
@@ -27,33 +18,31 @@ def setup_driver_with_existing_profile(profile_path):
 
 
 def check_login_success(driver):
-    time.sleep(5)  # Allow time for any redirects and for the page to load
     try:
-        # Using a generic element that should be visible after login, adjust as needed
-        driver.find_element(By.CSS_SELECTOR, "[data-qa='top_nav']")
-        print("Login appears to be successful.")
-    except NoSuchElementException:
+        WebDriverWait(driver, 10).until(
+            EC.title_contains("Slack - Search - Red Hat Inc.")
+        )
+        print("Login appears to be successful based on the page title.")
+    except TimeoutException:
         print("Login might not have been successful. Check if redirected to login page.")
-        # Additional debugging: Print current URL and page title
         print(f"Current URL: {driver.current_url}")
         print(f"Page title: {driver.title}")
+        body_text = driver.find_element(By.TAG_NAME, 'body').text[:500]
+        print(f"Page body snippet: {body_text}")
 
 
-def perform_slack_search(driver, search_url):
-    driver.get(search_url)  # Make sure to navigate to the search URL
-    check_login_success(driver)  # Debugging login
-
-    time.sleep(5)  # Allow time for page load and dynamic content
-
-    # Now, attempting to interact with the search or finding elements
-    try:
-        # Adjust as needed based on actual elements for search results on Slack
-        search_elements = driver.find_elements(By.CSS_SELECTOR, "div[role='listitem']")
-        print(f"Number of elements found: {len(search_elements)}")
-        for element in search_elements[:3]:  # Just as an example, print out first few
-            print(element.text[:100])  # Print a snippet of each result for verification
-    except Exception as e:
-        print(f"Error finding or printing elements: {e}")
+def perform_slack_search(driver, search_url, search_query):
+    driver.get(search_url)
+    # Wait for the search input to become clickable, ensuring it starts with 'Search'
+    WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "input[placeholder^='Search']"))
+    )
+    # Find the search input using the same condition
+    search_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder^='Search']")
+    search_input.click()  # Click the search bar to activate it
+    search_input.clear()  # Clear any pre-filled text
+    search_input.send_keys(search_query)  # Enter the search query
+    search_input.send_keys(Keys.RETURN)  # Press Enter to initiate the search
 
 
 def main():
@@ -63,7 +52,8 @@ def main():
     driver = setup_driver_with_existing_profile(profile_path)
     try:
         slack_search_url = "https://app.slack.com/client/E030G10V24F/search"
-        perform_slack_search(driver, slack_search_url)
+        search_query = "foosball"  # Replace with your actual search term
+        perform_slack_search(driver, slack_search_url, search_query)
     finally:
         driver.quit()
 
