@@ -6,3 +6,6 @@
 /.idea/inspectionProfiles/profiles_settings.xml
 /the_source_de_duped_results.csv
 /.idea/vcs.xml
+/cookies_firefox_copy.sqlite-wal
+/cookies_firefox_copy.sqlite-shm
+/unique_words_list.txt
