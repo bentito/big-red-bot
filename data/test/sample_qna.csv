@@ -1,0 +1,123 @@
+Question,Answer
+"I have an operator catalog image with me, `quay.io/operator-framework/upstream-community-operators:latest`, how do I make the operators included in the catalog image, available for installation on my cluster? 
+
+","You can make the operators available for installation on your cluster by creating a `CatalogSource` CR: 
+
+```
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: my-catalog
+  namespace: olm
+spec:
+  sourceType: grpc
+  image: quay.io/operator-framework/upstream-community-operators:latest
+  displayName: Community Operators
+  publisher: OperatorHub.io
+```"
+"I added a catalog source to my cluster, but I don't see any operators available for installation, did something go wrong? ","Once you add a catalog source to your cluster, you can check the status of the catalog source by inspecting the CR's status.
+
+If you have the `yq` tool available locally, you can use `yq`:
+
+```
+$ kubectl get CatalogSource  <catalog-source-name> -n <catalog-source-namespace> -o yaml | yq e '.status' -
+```
+
+If you don't have the `yq` tool available, you can use `grep` instead 
+
+```
+$ kubectl get CatalogSource  <catalog-source-name> -n <catalog-source-namespace> -o yaml | grep status -A 4
+```
+
+The status should indicate what exactly has gone wrong in your attempt to add the catalog source to your cluster. "
+How can I see what operators are available for installation in my cluster?,"You can see what operators are available for installation on your cluster by querying the PackageManifest API: 
+
+```
+$ kubectl get packagemanifests -n <namespace>
+```"
+How can I install an operator on my cluster from the list of operators available for installation?,"You can see what operators are available for installation on your cluster by querying the PackageManifest API: 
+
+```
+$ kubectl get packagemanifests -n <namespace>
+```
+
+Once you have selected which operator you want to install, you need to first create an OperatorGroup for the namespace 
+you want your operator installed in: 
+
+```
+apiVersion: operators.coreos.com/v1alpha2
+kind: OperatorGroup
+metadata:
+  name: my-group
+  namespace: my-namespace
+```
+An OperatorGroup selects a set of target namespaces in which to generate required RBAC access for its member operators.
+The set of target namespaces is provided via a comma-delimited string stored in the olm.targetNamespaces annotation. 
+This annotation is applied to member operator’s ClusterServiceVersion (CSV) instances and is projected into their deployments. 
+It is accessible to operator containers using The Downward API
+Once you have created your OpeatorGroup, you can then create a Subscription for the operator you want to install: 
+
+```$ 
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: <name-of-your-subscription>
+  namespace: <namespace-you-want-your-operator-installed-in>
+spec:
+  channel: <channel-you-want-to-subscribe-to>
+  name: <name-of-your-operator>
+  source: <name-of-catalog-operator-is-part-of>
+  sourceNamespace: <namespace-that-has-catalog>
+  installPlanApproval: <Automatic/Manual>
+```
+
+The Subscription object creates an InstallPlan, 
+which is either automatically approved (if sub.spec.installPlanApproval: Automatic), 
+or needs to be approved (if sub.spec.installPlanApproval: Manual), following which the operator is installed in the 
+namespace you want.
+
+If the InstallPlan is set to manual, you need to approve the InstallPlan, otherwise it is approved automatically. To aprove an 
+InstallPlan foo created in the bar namespace, use the following command: 
+
+```
+$ kubectl edit ip foo -n bar
+```
+
+and then change the spec.approved from false to true. Be sure the check the status of the Subscription, to ensure that the 
+status is reporting `Succeeded`. 
+
+
+
+
+
+"
+"Hey, looking for guidance on how to do Tier 2 support for operators with both a rolling update strategy and a per-y-stream strategy.
+eg, can we do both a stable channel and a set of stable-1.1 , stable-1.2, stable-1.3 channels...
+and does that mean building 2 bundles per release, and 2 erratas per release?","You're going to want to avoid a channel called stable (what happens when you need to release a v2?). It would be better to call it stable-v1.
+Other than that, what you're describing sounds a lot like the file-based catalog ""semver template"" https://olm.operatorframework.io/docs/reference/catalog-templates/#semver-template"
+"I have an operator deployment that creates three services, instead of two (one for the metrics, one for the webhooks). 
+This causes malfunctions with the webhook. These are the services that get created at deployment time by OLM (the intruder in the one in the middle).
+Interestingly there are only two services in the deployment plan. Can anyone suggest a way to troubleshoot this? ","Ah, yeah OLM doesn’t expect users to add a service or webhook definition to the bundle, all you need to do is add the 
+conversion webhook to the CSV: https://olm.operatorframework.io/docs/advanced-tasks/adding-admission-and-conversion-webhooks/#docs-etcd
+"
+"Hey team, I had a query regarding https://olm.operatorframework.io/docs/advanced-tasks/ship-operator-supporting-multiarch/#multiple-architectures (multi arch support). 
+What exactly do these labels enable us? Is it just for filtering on the web console or does it also block/warn users when installing the operator on unsupported architectures?
+","OLM itself doesn't do anything special with these labels, they're just for the console
+"
+"I have corrected a issue with a installplan (pod in crashbackloopbackoff that I bounced back to life).   What do admins usually do now? 
+I've been deleting the installPlan and sometimes they come back sometimes they dont.   Is there a 'correct' procedure?
+","the InstallPlan API is an internal facing API that is managed by OLM — it’s not recommended to remove it manually in the case of a failed install.
+The most direct route is to do a clean install — remove the related subscription and CSV (see https://olm.operatorframework.io/docs/tasks/uninstall-operator/ for more info) and then recreate the subscription. That would trigger a new InstallPlan to eventually be created.
+
+"
+"How does olm bundle dependency pick channel to use in a catalog source?
+Can we pick a channel?","I don’t believe that there is a way to specify a specific channel as a dependency, 
+but OLM does give preference to the default channel of the dependency.
+
+An operator package in a catalog is a collection of update channels that a user can subscribe to in a cluster. Channels may be used to provide a particular stream of updates for a minor release (i.e. 1.2, 1.3) or a simple release frequency (stable, fast).
+
+It is likely that a dependency may be satisfied by operators in the same package, but different channels. For example, version 1.2 of an operator may exist in both stable and fast.
+
+Each package has a default channel, which is always preferred to non-default channels. If no option in the default channel can satisfy a dependency, options are considered from the remaining channels in lexicographic order of the channel name.
+
+A future release of OLM will allow customizing the sort preference for channels."
