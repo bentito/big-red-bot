@@ -9,3 +9,4 @@
 /cookies_firefox_copy.sqlite-wal
 /cookies_firefox_copy.sqlite-shm
 /unique_words_list.txt
+/keyword_and_slack_crawl/data/unique_words_list_proc.txt
