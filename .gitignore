@@ -10,3 +10,5 @@
 /cookies_firefox_copy.sqlite-shm
 /keyword_and_slack_crawl/data/unique_words_list.txt
 /keyword_and_slack_crawl/data/unique_words_list_proc.txt
+/keyword_and_slack_crawl/data/slack_search_manually/
+/keyword_and_slack_crawl.tar.gz
