@@ -57,7 +57,7 @@ def main():
         print(f"Total unique terms collected: {len(unique_terms)}")  # Debugging line
 
         # Save to file
-        output_file = 'computing_terms_list.txt'
+        output_file = 'data/computing_terms_list.txt'
         with open(output_file, 'w', encoding='utf-8') as file:
             for term in unique_terms:
                 file.write(f"{term}\n")

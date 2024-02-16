@@ -67,10 +67,11 @@ def process_file_parallel(input_file, output_file, tech_terms):
 def main():
     debug_mode = '--debug' in sys.argv
     logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
-    tech_terms = load_tech_terms('computing_terms_list.txt')
+    tech_terms = load_tech_terms('data/computing_terms_list.txt')
 
     logging.info("Starting to process the words...")
-    unique_words = process_file_parallel('unique_words_list.txt', 'unique_words_list_proc.txt', tech_terms)
+    unique_words = process_file_parallel('../unique_words_list.txt',
+                                         'keyword_and_slack_crawl/data/unique_words_list_proc.txt', tech_terms)
     logging.info("Finished processing. The processed file is 'unique_words_list_proc.txt'.")
 
     if debug_mode:

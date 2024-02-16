@@ -43,7 +43,7 @@ def main():
         "/Users/btofel/Downloads/The_Source_search_results_the_webpg_url.csv"
     ]
 
-    output_file = "./the_source_de_duped_results.csv"
+    output_file = "../the_source_de_duped_results.csv"
     de_duplicate_csv_files(csv_files, output_file)
 
 
