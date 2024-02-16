@@ -53,7 +53,7 @@ def main(debug=False):
     db_path = "../cookies_firefox_copy.sqlite"
     domain = "redhat.com"
     input_csv = "./the_source_de_duped_results.csv"
-    output_file = "../unique_words_list.txt"
+    output_file = "data/unique_words_list.txt"
     total_urls = get_total_urls(input_csv)
     current_url_number = 0
 
