@@ -1,87 +1,81 @@
-#!/usr/bin/env python3
-import random
 import re
+import string
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
-
+from urllib.parse import urlparse, parse_qs
 import nltk
+from nltk.corpus import stopwords
+from joblib import Parallel, delayed
+import logging
+import random
 
-# Configuration
-DEBUG = "--debug" in sys.argv
-input_file = 'unique_words_list.txt'  # Update this path to your unique words list file
-output_file = 'unique_words_list_proc.txt'  # Update this path to where you want the processed file
-
-# Ensure NLTK resources are downloaded
-nltk.download('words')
+# Initialize NLTK resources
 nltk.download('stopwords')
+english_stopwords = set(stopwords.words('english'))
 
-# Load NLTK resources
-from nltk.corpus import words, stopwords
+# Function to load technical computing terms
+def load_tech_terms(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        return set(word.strip().lower() for word in file)
 
+# Function to clean and extract meaningful parts from URLs
+def extract_url_words(url):
+    parsed_url = urlparse(url)
+    path_parts = re.split(r'\W+', parsed_url.path)
+    query_parts = re.split(r'\W+', '&'.join(parse_qs(parsed_url.query).keys()))
+    return {part.lower() for part in path_parts + query_parts if part}
 
-def load_nltk_resources():
-    """Load resources from NLTK."""
-    english_words = set(words.words())
-    common_stopwords = set(stopwords.words('english'))
-    return english_words, common_stopwords
+# Function to process a single line
+def process_line(line, tech_terms):
+    words = set()
+    # Split by non-word characters, except for apostrophes within words
+    for word in re.split(r'\b|\s|\W+\b|\b\W+', line.strip()):
+        original_word = word  # Keep the original word for tech terms check
+        word = word.lower()  # Normalize to lowercase
+        if word and word not in english_stopwords:
+            if word.isdigit() or all(char in string.punctuation for char in word):
+                continue  # Skip purely numeric or punctuation words
+            # Split compound words but keep original if it's a technical term
+            if '_' in word and original_word not in tech_terms:
+                words.update(word.split('_'))
+            elif '-' in word and original_word not in tech_terms:
+                words.update(word.split('-'))
+            elif word in tech_terms or not word.isalpha():
+                words.add(word)
+            # Check if the word is a URL
+            elif re.match(r'https?:\/\/', word):
+                words.update(extract_url_words(word))
+            else:
+                words.add(word)
+    return words
 
+# Main processing function with parallel execution
+def process_file_parallel(input_file, output_file, tech_terms):
+    unique_words = set()
+    with open(input_file, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
 
-def process_word(word, technical_terms, common_stopwords):
-    """Clean and filter individual words."""
-    # If the word looks like a file path (contains slashes but is not a URL), keep slashes
-    if '/' in word and not re.match(r'https?://', word):
-        cleaned_word = re.sub(r'[^a-zA-Z0-9/]', '', word).lower()  # Remove all but alphanumeric and slashes
-    elif re.match(r'https?://', word):  # If the word is a URL, process accordingly
-        try:
-            parsed_url = urlparse(word)
-            word = parsed_url.path.replace('-', ' ').strip()  # Retain slashes in URLs, replace other special characters
-        except ValueError:
-            word = re.sub(r'https?://|www\.', '', word).replace('-', ' ').strip()
-        cleaned_word = re.sub(r'[^a-zA-Z0-9 ]', '', word).lower()  # Remove all but alphanumeric and space for URLs
-    else:
-        # For other text, remove punctuation and lowercase
-        cleaned_word = re.sub(r'[!\"#$%&\'()*+,./:;<=>?@\[\\\]^_`{|}~]', '', word).lower()
+    # Process lines in parallel
+    results = Parallel(n_jobs=-1)(delayed(process_line)(line, tech_terms) for line in lines)
+    for result in results:
+        unique_words.update(result)
 
-    # Retain the word if it's a technical term or not a common English word
-    return cleaned_word if cleaned_word not in common_stopwords or cleaned_word in technical_terms else None
-
+    with open(output_file, 'w', encoding='utf-8') as file:
+        for word in sorted(unique_words):
+            file.write(word + '\n')
+    return unique_words
 
 def main():
-    # Load English dictionary and common stopwords
-    english_words, common_stopwords = load_nltk_resources()
-    technical_terms = english_words - common_stopwords  # Presumed technical terms
+    debug_mode = '--debug' in sys.argv
+    logging.basicConfig(level=logging.DEBUG if debug_mode else logging.INFO)
+    tech_terms = load_tech_terms('computing_terms_list.txt')
 
-    # Read the unique words from the input file
-    with open(input_file, 'r', encoding='utf-8') as f:
-        original_words = [line.strip() for line in f]
+    logging.info("Starting to process the words...")
+    unique_words = process_file_parallel('unique_words_list.txt', 'unique_words_list_proc.txt', tech_terms)
+    logging.info("Finished processing. The processed file is 'unique_words_list_proc.txt'.")
 
-    total_words = len(original_words)
-    processed_words = []
-
-    # Set up ThreadPoolExecutor to use multiple threads
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_word = {executor.submit(process_word, word, technical_terms, common_stopwords): word for word in
-                          original_words}
-
-        for future in as_completed(future_to_word):
-            processed_word = future.result()
-            if processed_word:
-                processed_words.append(processed_word)
-            sys.stdout.write(f"\rProcessing word {len(processed_words)}/{total_words}")
-            sys.stdout.flush()
-
-    if DEBUG:
-        # Print out 20 random words for debugging
-        sample_words = random.sample(processed_words, min(20, len(processed_words)))
-        print("\nSample processed words:", sample_words)
-    else:
-        # Write the processed, unique words to the output file
-        with open(output_file, 'w', encoding='utf-8') as f:
-            for word in processed_words:
-                f.write(f"{word}\n")
-        print(f"\nCompleted: Processed and unique words written to {output_file}")
-
+    if debug_mode:
+        sampled_words = random.sample(unique_words, min(20, len(unique_words)))
+        logging.debug(f"Randomly sampled words: {sampled_words}")
 
 if __name__ == "__main__":
     main()
